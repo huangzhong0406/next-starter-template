@@ -1,0 +1,21 @@
+{
+	"slug": "globex",
+	"name": "Globex Retail",
+	"tagline": "Turn retail traffic into memberships.",
+	"description": "Demonstrates a tenant still pending DNS validation. KV keeps the record so you can preview the experience with a temporary subdomain while the customer's apex is onboarding.",
+	"accent": "#14b8a6",
+	"secondary": "#042f2e",
+	"domains": ["globex.site.com", "globex.localhost:3000"],
+	"customDomains": ["shop.globex.example.com"],
+	"features": [
+		"Loyalty wallets",
+		"Customer data clean rooms",
+		"Campaign level A/B tests",
+		"Edge personalization"
+	],
+	"cta": {
+		"label": "Send invite email",
+		"href": "mailto:onboarding@globex.example.com"
+	},
+	"status": "pending"
+}

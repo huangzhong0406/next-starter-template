@@ -1,0 +1,21 @@
+{
+	"slug": "test2025",
+	"name": "Test2025 Workspace",
+	"tagline": "Branded portal dedicated to test2025.singoo.vip.",
+	"description": "A production customer CNAMEs their domain to saas.singoo.ai. Store the custom hostname in KV so the very first request renders the branded experience.",
+	"accent": "#f97316",
+	"secondary": "#431407",
+	"domains": ["test2025.singoo.ai"],
+	"customDomains": ["test2025.singoo.vip"],
+	"features": [
+		"Chargeback guardrails",
+		"Same-day payouts",
+		"Multi-ledger exports",
+		"SOC 2 controls"
+	],
+	"cta": {
+		"label": "Talk to our team",
+		"href": "mailto:team@test2025.singoo.vip"
+	},
+	"status": "live"
+}

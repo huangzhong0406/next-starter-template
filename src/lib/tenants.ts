@@ -17,22 +17,48 @@ export type TenantConfig = {
 	status?: "live" | "pending";
 };
 
-const tenants: TenantConfig[] = [
+export type TenantResolution = {
+	tenant: TenantConfig;
+	tenants: TenantConfig[];
+	source: "kv" | "fallback";
+};
+
+export const KV_TENANT_KEY_PREFIX = "tenant:";
+export const KV_HOST_KEY_PREFIX = "host:";
+
+const CF_CONTEXT_SYMBOL = Symbol.for("__cloudflare-context__");
+
+const sanitizeHost = (host?: string | null): string | undefined => {
+	if (!host) {
+		return undefined;
+	}
+	const trimmed = host.split(",")[0]?.trim();
+	return trimmed?.replace(/\/.*$/, "").toLowerCase();
+};
+
+const staticTenants: TenantConfig[] = [
 	{
 		slug: "studio",
-		name: "SaaS Control Plane",
-		tagline: "Manage every workspace from a single dashboard.",
+		name: "Singoo Control Center",
+		tagline: "Launch and operate every customer workspace under singoo.ai.",
 		description:
-			"Use this tenant for your marketing site, onboarding forms, and internal tooling. It responds to the default Workers.dev domain and localhost.",
+			"Use this tenant as your control plane and marketing surface. It responds to localhost, your primary apex, and saas.singoo.ai so prospects can onboard before receiving a dedicated hostname.",
 		accent: "#2563eb",
 		secondary: "#0f172a",
-		domains: ["localhost", "localhost:3000", "127.0.0.1:3000"],
-		customDomains: ["next-starter-template.templates.workers.dev"],
+		domains: [
+			"localhost",
+			"localhost:3000",
+			"127.0.0.1:3000",
+			"singoo.ai",
+			"www.singoo.ai",
+			"saas.singoo.ai"
+		],
+		customDomains: ["app.singoo.ai"],
 		features: [
-			"Workspace provisioning API",
+			"Instant workspace provisioning",
+			"Primary domain landing page",
 			"Custom domain enrollment",
-			"Centralized billing",
-			"Audit-ready logging"
+			"Billing + usage insights"
 		],
 		cta: {
 			label: "Create a workspace",
@@ -41,15 +67,15 @@ const tenants: TenantConfig[] = [
 		status: "live"
 	},
 	{
-		slug: "acme",
-		name: "Acme Finance",
-		tagline: "Embedded treasury for marketplaces.",
+		slug: "test2025",
+		name: "Test2025 Workspace",
+		tagline: "Branded portal dedicated to test2025.singoo.vip.",
 		description:
-			"This tenant represents a paying customer that connected their own apex domain. Requests to any hostname in the list render Acme's theme.",
+			"A production customer CNAMEs their domain to saas.singoo.ai. Store the custom hostname in KV so the very first request renders the branded experience.",
 		accent: "#f97316",
 		secondary: "#431407",
-		domains: ["acme.localhost:3000", "acme.next-saas-demo.workers.dev"],
-		customDomains: ["finance.acme.example.com"],
+		domains: ["test2025.singoo.ai"],
+		customDomains: ["test2025.singoo.vip"],
 		features: [
 			"Chargeback guardrails",
 			"Same-day payouts",
@@ -57,8 +83,8 @@ const tenants: TenantConfig[] = [
 			"SOC 2 controls"
 		],
 		cta: {
-			label: "Book a treasury review",
-			href: "mailto:sales@acme.example.com"
+			label: "Talk to our team",
+			href: "mailto:team@test2025.singoo.vip"
 		},
 		status: "live"
 	},
@@ -67,10 +93,10 @@ const tenants: TenantConfig[] = [
 		name: "Globex Retail",
 		tagline: "Turn retail traffic into memberships.",
 		description:
-			"Illustrates a tenant that has finished onboarding but is waiting for DNS validation. Helpful when demoing pending custom hostname states.",
+			"Demonstrates a tenant still pending DNS validation. KV keeps the record so you can preview the experience with a temporary subdomain while the customer's apex is onboarding.",
 		accent: "#14b8a6",
 		secondary: "#042f2e",
-		domains: ["globex.localhost:3000", "preview.globex-saas.dev"],
+		domains: ["globex.singoo.ai", "globex.localhost:3000"],
 		customDomains: ["shop.globex.example.com"],
 		features: [
 			"Loyalty wallets",
@@ -86,27 +112,151 @@ const tenants: TenantConfig[] = [
 	}
 ];
 
-const FALLBACK_TENANT = tenants[0];
+const fallbackTenant = staticTenants[0];
 
-const sanitizeHost = (host?: string | null) => {
+const staticHostIndex = new Map<string, TenantConfig>();
+for (const tenant of staticTenants) {
+	for (const domain of [...tenant.domains, ...tenant.customDomains]) {
+		const clean = sanitizeHost(domain);
+		if (clean) {
+			staticHostIndex.set(clean, tenant);
+		}
+	}
+}
+
+const isTenantConfig = (value: unknown): value is TenantConfig => {
+	if (typeof value !== "object" || value === null) {
+		return false;
+	}
+	const candidate = value as Record<string, unknown>;
+	return (
+		typeof candidate.slug === "string" &&
+		typeof candidate.name === "string" &&
+		Array.isArray(candidate.domains) &&
+		Array.isArray(candidate.customDomains)
+	);
+};
+
+const getCloudflareEnv = (): CloudflareEnv | undefined => {
+	try {
+		const context = Reflect.get(globalThis, CF_CONTEXT_SYMBOL) as
+			| { env?: CloudflareEnv }
+			| undefined;
+		return context?.env;
+	} catch {
+		return undefined;
+	}
+};
+
+const loadTenantFromKv = async (
+	env: CloudflareEnv,
+	slug: string
+): Promise<TenantConfig | undefined> => {
+	try {
+		const record = await env.TENANTS.get<TenantConfig>(
+			`${KV_TENANT_KEY_PREFIX}${slug}`,
+			{ type: "json" }
+		);
+		return isTenantConfig(record) ? record : undefined;
+	} catch (error) {
+		console.warn("TENANTS_KV::get tenant failed", error);
+		return undefined;
+	}
+};
+
+const loadTenantsFromKv = async (
+	env?: CloudflareEnv
+): Promise<TenantConfig[]> => {
+	if (!env?.TENANTS) {
+		return [];
+	}
+
+	try {
+		const listResult = await env.TENANTS.list({ prefix: KV_TENANT_KEY_PREFIX });
+		if (!listResult.keys.length) {
+			return [];
+		}
+
+		const records = await Promise.all(
+			listResult.keys.map((key) =>
+				env.TENANTS.get<TenantConfig>(key.name, { type: "json" })
+			)
+		);
+
+		return records.filter(isTenantConfig);
+	} catch (error) {
+		console.warn("TENANTS_KV::list failed", error);
+		return [];
+	}
+};
+
+const getTenantForHostFromKv = async (
+	env: CloudflareEnv | undefined,
+	host: string | undefined
+): Promise<TenantConfig | undefined> => {
+	if (!env?.TENANTS || !host) {
+		return undefined;
+	}
+
+	try {
+		const slug = await env.TENANTS.get(`${KV_HOST_KEY_PREFIX}${host}`);
+		if (!slug) {
+			return undefined;
+		}
+		return loadTenantFromKv(env, slug);
+	} catch (error) {
+		console.warn("TENANTS_KV::host lookup failed", error);
+		return undefined;
+	}
+};
+
+const findTenantInList = (
+	tenants: TenantConfig[],
+	host: string | undefined
+): TenantConfig | undefined => {
 	if (!host) {
 		return undefined;
 	}
-	const trimmed = host.split(",")[0]?.trim();
-	return trimmed?.replace(/\/.*$/, "").toLowerCase();
+
+	return tenants.find((tenant) => {
+		const domains = [...tenant.domains, ...tenant.customDomains];
+		return domains.some((domain) => sanitizeHost(domain) === host);
+	});
 };
 
-export const getTenantFromHost = (host?: string | null): TenantConfig => {
+export const resolveTenantsForHost = async (
+	host?: string | null
+): Promise<TenantResolution> => {
 	const cleanHost = sanitizeHost(host);
-	if (!cleanHost) {
-		return FALLBACK_TENANT;
+	const env = getCloudflareEnv();
+
+	const [kvTenants, kvTenant] = await Promise.all([
+		loadTenantsFromKv(env),
+		getTenantForHostFromKv(env, cleanHost)
+	]);
+
+	let tenantList =
+		kvTenants.length > 0 ? [...kvTenants] : [...staticTenants];
+
+	if (kvTenant && !tenantList.some((tenant) => tenant.slug === kvTenant.slug)) {
+		tenantList = [kvTenant, ...tenantList];
 	}
 
-	const match = tenants.find((tenant) =>
-		tenant.domains.some((domain) => sanitizeHost(domain) === cleanHost)
-	);
+	const tenant =
+		kvTenant ??
+		findTenantInList(tenantList, cleanHost) ??
+		staticHostIndex.get(cleanHost ?? "") ??
+		tenantList[0] ??
+		fallbackTenant;
 
-	return match ?? FALLBACK_TENANT;
+	const source: "kv" | "fallback" =
+		kvTenant || kvTenants.length > 0 ? "kv" : "fallback";
+
+	return {
+		tenant,
+		tenants: tenantList.length > 0 ? tenantList : [fallbackTenant],
+		source
+	};
 };
 
-export const getAllTenants = () => tenants;
+export const getStaticTenants = () => staticTenants;

@@ -11,6 +11,13 @@
 		"binding": "ASSETS",
 		"directory": ".open-next/assets"
 	},
+	// TODO: update the namespace IDs after running `wrangler kv namespace create`
+	"kv_namespaces": [
+		{
+			"binding": "TENANTS",
+			"id": "7ea3b67927124be2bb54ee6630235af4"
+		}
+	],
 	"observability": {
 		"enabled": true
 	},

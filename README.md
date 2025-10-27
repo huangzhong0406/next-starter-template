@@ -46,11 +46,45 @@ This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-opti
 
 ## SaaS + Custom Domain Demo
 
-This template is now wired for a multi-tenant SaaS experience:
+This template is now wired for a multi-tenant SaaS experience that assumes your platform apex is `singoo.ai`:
 
 - `src/lib/tenants.ts` contains mocked customer records (marketing site, paid tenants, and a pending onboarding flow).  
 - The home page (`src/app/page.tsx`) inspects the incoming `Host` header inside the Cloudflare Worker / Next.js server component and renders the matching tenant with a unique brand theme, copy, and CTA.  
 - Domain lists are split between default Workers.dev/localhost hostnames and customer-provided hostnames so you can verify routing at a glance.
+
+### Using Cloudflare KV for tenant lookup
+
+Tenants resolve from Cloudflare KV whenever the binding `TENANTS` is available. The worker falls back to static seed data if the namespace is empty or missing.
+
+1. Create a namespace and wire it to Wrangler:
+
+   ```bash
+   wrangler kv namespace create TENANTS
+   wrangler kv namespace create TENANTS --preview
+   # Copy the IDs into wrangler.jsonc (look for REPLACE_WITH_* placeholders)
+   ```
+
+2. Seed the namespace with the sample tenants (see `config/tenants/`):
+
+   ```bash
+   wrangler kv:key put --binding=TENANTS tenant:studio --path=config/tenants/studio.json
+   wrangler kv:key put --binding=TENANTS tenant:test2025 --path=config/tenants/test2025.json
+   wrangler kv:key put --binding=TENANTS tenant:globex --path=config/tenants/globex.json
+   ```
+
+3. Map hostnames to tenant slugs so lookups resolve instantly (adapt to your own customers and subdomains):
+
+   ```bash
+   wrangler kv:key put --binding=TENANTS host:singoo.ai studio
+   wrangler kv:key put --binding=TENANTS host:www.singoo.ai studio
+   wrangler kv:key put --binding=TENANTS host:saas.singoo.ai studio
+   wrangler kv:key put --binding=TENANTS host:test2025.singoo.ai test2025
+   wrangler kv:key put --binding=TENANTS host:test2025.singoo.vip test2025
+   wrangler kv:key put --binding=TENANTS host:globex.singoo.ai globex
+   wrangler kv:key put --binding=TENANTS host:globex.localhost:3000 globex
+   ```
+
+   The prefixes (`tenant:` and `host:`) can be reused for automation. See the exported `KV_TENANT_KEY_PREFIX` and `KV_HOST_KEY_PREFIX` constants in `src/lib/tenants.ts`.
 
 ### Testing Different Tenants Locally
 

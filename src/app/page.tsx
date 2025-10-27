@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { headers } from "next/headers";
-import { getAllTenants, getTenantFromHost } from "@/lib/tenants";
+import { resolveTenantsForHost } from "@/lib/tenants";
 
-export default function Home() {
-	const host = headers().get("host");
-	const tenant = getTenantFromHost(host);
-	const otherTenants = getAllTenants().filter(
+export default async function Home() {
+	const headersList = await headers();
+	const host = headersList.get("host");
+	const { tenant, tenants, source } = await resolveTenantsForHost(host);
+	const otherTenants = tenants.filter(
 		(otherTenant) => otherTenant.slug !== tenant.slug
 	);
 
@@ -42,6 +43,12 @@ export default function Home() {
 								<p className="text-white/60">Status</p>
 								<p className="font-semibold uppercase">
 									{tenant.status ?? "live"}
+								</p>
+							</div>
+							<div className="rounded-2xl border border-white/30 bg-black/30 px-4 py-3">
+								<p className="text-white/60">Resolution source</p>
+								<p className="font-semibold uppercase">
+									{source === "kv" ? "Cloudflare KV" : "Static seed"}
 								</p>
 							</div>
 							<div className="rounded-2xl border border-white/30 bg-black/30 px-4 py-3">
@@ -143,8 +150,7 @@ export default function Home() {
 											other.status === "pending"
 												? "text-amber-300"
 												: "text-emerald-300"
-										}`}
-									>
+										}`}>
 										{other.status ?? "live"}
 									</span>
 								</div>
