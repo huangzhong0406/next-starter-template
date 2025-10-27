@@ -44,6 +44,40 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
 
+## SaaS + Custom Domain Demo
+
+This template is now wired for a multi-tenant SaaS experience:
+
+- `src/lib/tenants.ts` contains mocked customer records (marketing site, paid tenants, and a pending onboarding flow).  
+- The home page (`src/app/page.tsx`) inspects the incoming `Host` header inside the Cloudflare Worker / Next.js server component and renders the matching tenant with a unique brand theme, copy, and CTA.  
+- Domain lists are split between default Workers.dev/localhost hostnames and customer-provided hostnames so you can verify routing at a glance.
+
+### Testing Different Tenants Locally
+
+1. Run the dev server so it accepts arbitrary host headers:
+
+   ```bash
+   npm run dev -- --hostname 0.0.0.0 --port 3000
+   ```
+
+2. Hit the server with a custom host header (or add an entry to your `hosts` file):
+
+   ```bash
+   curl -H "Host: acme.localhost:3000" http://127.0.0.1:3000
+   curl -H "Host: globex.localhost:3000" http://127.0.0.1:3000
+   ```
+
+3. Tailwind-driven styles and copy will change instantly, proving that tenant resolution happens before rendering.
+
+Add or edit tenants by updating the array in `src/lib/tenants.ts`. Each tenant can list as many `domains` (platform-controlled) and `customDomains` (customer-controlled) as needed.
+
+### Wiring Customer Domains on Cloudflare
+
+1. Deploy the Worker (`npm run build && npm run deploy`).
+2. For every tenant-owned hostname, create a [Custom Hostname](https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas) that points to the Worker, or add a Worker Route if the DNS zone already lives in your account.
+3. Cloudflare forwards the original `Host` header to the Worker. No extra code is needed—just append each hostname to the right tenant in `src/lib/tenants.ts`.
+4. Optional: store tenants in KV/D1/R2 and swap out the static config once you move past prototyping.
+
 ## Deploying To Production
 
 | Command                           | Action                                       |
