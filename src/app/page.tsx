@@ -1,169 +1,75 @@
-import Link from "next/link";
 import { headers } from "next/headers";
-import { resolveTenantsForHost } from "@/lib/tenants";
+import { resolveTenantForHost } from "@/lib/tenants";
 
 export default async function Home() {
-	const headersList = await headers();
-	const host = headersList.get("host");
-	const { tenant, tenants, source } = await resolveTenantsForHost(host);
-	const otherTenants = tenants.filter(
-		(otherTenant) => otherTenant.slug !== tenant.slug
-	);
+	const headerList = await headers();
+	const host = headerList.get("host");
+	const { meta, matchedByKv } = await resolveTenantForHost(host);
 
-	const gradient = `linear-gradient(135deg, ${tenant.accent}, ${tenant.secondary})`;
+	if (!matchedByKv) {
+		return (
+			<div className="min-h-screen bg-[#0b042d] text-white font-[family-name:var(--font-geist-sans)]">
+				<div className="mx-auto w-full max-w-4xl px-6 py-24 sm:px-12">
+					<section className="relative overflow-hidden rounded-3xl border border-[#7c3aed]/50 bg-gradient-to-br from-[#c026d3] via-[#7c3aed] to-[#2563eb] p-12 text-center shadow-[0_35px_120px_-25px_rgba(124,58,237,0.55)]">
+						<div className="pointer-events-none absolute -top-40 -left-32 h-72 w-72 rounded-full bg-white/20 blur-3xl" />
+						<div className="pointer-events-none absolute -bottom-32 -right-24 h-80 w-80 rounded-full bg-cyan-300/30 blur-3xl" />
+						<p className="text-sm font-semibold uppercase tracking-[0.32em] text-white/80">
+							403 Forbidden
+						</p>
+						<h1 className="mt-6 text-4xl font-semibold sm:text-5xl text-white">
+							域名尚未授权访问
+						</h1>
+						<p className="mt-4 text-base text-white/85">
+							我们检测到域名{" "}
+							<span className="font-mono text-white">
+								{host ?? "unknown-host"}
+							</span>{" "}
+							尚未在平台中完成授权。请完成 DNS 校验或联系站点管理员以继续访问{" "}
+							{meta.name}。
+						</p>
+						<p className="mt-6 text-sm text-white/70">
+							配置成功后刷新页面即可恢复访问。
+						</p>
+					</section>
+				</div>
+			</div>
+		);
+	}
+
+	const gradient = `linear-gradient(135deg, ${meta.accent}, ${meta.secondary})`;
 
 	return (
 		<div className="min-h-screen bg-slate-950 text-white font-[family-name:var(--font-geist-sans)]">
-			<div className="mx-auto flex w-full max-w-6xl flex-col gap-12 px-4 py-12 sm:px-8">
+			<div className="mx-auto w-full max-w-5xl px-4 py-16 sm:px-8">
 				<section
-					className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-900/60 p-8 shadow-2xl sm:p-12"
+					className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-900/70 p-10 shadow-2xl sm:p-16"
 					style={{ backgroundImage: gradient }}
 				>
-					<div className="absolute inset-0 bg-black/30" aria-hidden />
+					<div className="absolute inset-0 bg-black/35" aria-hidden />
 					<div className="relative flex flex-col gap-6">
-						<span className="inline-flex w-fit items-center gap-2 rounded-full border border-white/50 px-4 py-1 text-sm font-medium uppercase tracking-[0.18em] text-white/80">
-							Active tenant
+						<span className="inline-flex w-fit items-center gap-2 rounded-full border border-white/40 px-4 py-1 text-sm font-medium uppercase tracking-[0.18em] text-white/80">
+							租户预览
 							<span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
 						</span>
-						<div className="space-y-1">
+						<div className="space-y-3">
 							<h1 className="text-4xl font-semibold sm:text-5xl">
-								{tenant.name}
+								{meta.name}
 							</h1>
-							<p className="text-lg text-white/80">{tenant.tagline}</p>
+							<p className="text-lg text-white/80">{meta.tagline}</p>
 						</div>
-						<p className="max-w-2xl text-base text-white/80">
-							{tenant.description}
+						<p className="max-w-2xl text-base text-white/75 leading-relaxed">
+							{meta.description}
 						</p>
-						<div className="flex flex-wrap gap-4 text-sm text-white/90">
-							<div className="rounded-2xl border border-white/30 bg-black/30 px-4 py-3">
-								<p className="text-white/60">Host header</p>
-								<p className="font-semibold">{host ?? "unknown"}</p>
-							</div>
-							<div className="rounded-2xl border border-white/30 bg-black/30 px-4 py-3">
-								<p className="text-white/60">Status</p>
-								<p className="font-semibold uppercase">
-									{tenant.status ?? "live"}
-								</p>
-							</div>
-							<div className="rounded-2xl border border-white/30 bg-black/30 px-4 py-3">
-								<p className="text-white/60">Resolution source</p>
-								<p className="font-semibold uppercase">
-									{source === "kv" ? "Cloudflare KV" : "Static seed"}
-								</p>
-							</div>
-							<div className="rounded-2xl border border-white/30 bg-black/30 px-4 py-3">
-								<p className="text-white/60">Custom domains</p>
-								<p className="font-semibold">{tenant.customDomains.length}</p>
-							</div>
-						</div>
-						<div className="flex flex-wrap gap-3 text-sm">
-							{tenant.features.map((feature) => (
+						<div className="mt-4 inline-flex flex-wrap gap-3 text-sm text-white/85">
+							{meta.features.map((feature) => (
 								<span
 									key={feature}
-									className="rounded-full border border-white/40 bg-black/30 px-4 py-1.5 text-white/80"
+									className="rounded-full border border-white/40 bg-black/30 px-4 py-1.5"
 								>
 									{feature}
 								</span>
 							))}
 						</div>
-						<div className="pt-2">
-							<Link
-								className="inline-flex items-center rounded-full bg-white px-6 py-3 text-base font-semibold text-slate-900 transition hover:bg-white/80"
-								href={tenant.cta.href}
-								target="_blank"
-								rel="noreferrer"
-							>
-								{tenant.cta.label}
-							</Link>
-						</div>
-					</div>
-				</section>
-
-				<section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 sm:p-8">
-					<div className="flex flex-col gap-2">
-						<h2 className="text-2xl font-semibold">Domain routing</h2>
-						<p className="text-base text-slate-200/70">
-							Add every hostname that should resolve to this tenant. Cloudflare
-							Workers forwards the original <code>Host</code> header, so Next.js
-							can look up the tenant before rendering.
-						</p>
-					</div>
-					<div className="mt-6 grid gap-6 md:grid-cols-2">
-						<div>
-							<h3 className="text-sm uppercase tracking-widest text-slate-400">
-								Routed via Workers.dev / localhost
-							</h3>
-							<ul className="mt-3 space-y-2 text-base text-slate-50">
-								{tenant.domains.map((domain) => (
-									<li
-										key={domain}
-										className="rounded-2xl border border-white/5 bg-slate-800/80 px-4 py-3"
-									>
-										{domain}
-									</li>
-								))}
-							</ul>
-						</div>
-						<div>
-							<h3 className="text-sm uppercase tracking-widest text-slate-400">
-								Customer-owned domains
-							</h3>
-							<ul className="mt-3 space-y-2 text-base text-slate-50">
-								{tenant.customDomains.length ? (
-									tenant.customDomains.map((domain) => (
-										<li
-											key={domain}
-											className="rounded-2xl border border-emerald-500/20 bg-emerald-400/10 px-4 py-3"
-										>
-											{domain}
-										</li>
-									))
-								) : (
-									<li className="rounded-2xl border border-white/5 bg-slate-800/80 px-4 py-3 text-slate-300">
-										No custom domains connected yet.
-									</li>
-								)}
-							</ul>
-						</div>
-					</div>
-				</section>
-
-				<section className="rounded-3xl border border-white/5 bg-slate-900/50 p-6 sm:p-8">
-					<div className="flex flex-col gap-2">
-						<h2 className="text-2xl font-semibold">Other tenants</h2>
-						<p className="text-base text-slate-200/70">
-							The component below helps you demo tenant switching without
-							redeploying. Update <code>src/lib/tenants.ts</code> to add your own
-							records.
-						</p>
-					</div>
-					<div className="mt-6 grid gap-4 sm:grid-cols-2">
-						{otherTenants.map((other) => (
-							<div
-								key={other.slug}
-								className="rounded-2xl border border-white/10 bg-slate-950/40 p-4"
-							>
-								<div className="flex items-center justify-between">
-									<h3 className="text-lg font-semibold">{other.name}</h3>
-									<span
-										className={`text-xs font-semibold uppercase ${
-											other.status === "pending"
-												? "text-amber-300"
-												: "text-emerald-300"
-										}`}>
-										{other.status ?? "live"}
-									</span>
-								</div>
-								<p className="mt-1 text-sm text-slate-300">{other.tagline}</p>
-								<ul className="mt-4 space-y-1 text-sm text-slate-400">
-									{other.customDomains.map((domain) => (
-										<li key={domain}>
-											<span className="text-slate-500">Custom:</span> {domain}
-										</li>
-									))}
-								</ul>
-							</div>
-						))}
 					</div>
 				</section>
 			</div>
