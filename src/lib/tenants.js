@@ -107,6 +107,7 @@ const getTenantSlugFromKv = async (env, host) => {
 
 /**
  * @param {TenantApiResponse} response
+ * @param {string | undefined} host
  * @param {string} slug
  * @returns {TenantMeta | undefined}
  */
@@ -147,7 +148,7 @@ const mapApiResponseToMeta = (response, slug) => {
  * @param {string} slug
  * @returns {Promise<TenantMeta | undefined>}
  */
-const fetchTenantMeta = async (slug) => {
+const fetchTenantMeta = async (host, slug) => {
 	const endpoint = `${DEFAULT_API_BASE.replace(/\/$/, "")}/v2/aisite/pages/${slug}`;
 
 	try {
@@ -156,7 +157,7 @@ const fetchTenantMeta = async (slug) => {
 			cf: {
 				cacheEverything: true,
 				cacheTtl: 3600,
-				cacheKey: `tenant-meta:${slug}`
+				cacheKey: `tenant-meta:${sanitizeHost(host)}:${slug}`
 			},
 			headers: {
 				accept: "application/json",
@@ -204,7 +205,7 @@ export const resolveTenantForHost = async (host) => {
 		};
 	}
 
-	const apiMeta = await fetchTenantMeta(slugFromKv);
+	const apiMeta = await fetchTenantMeta(cleanHost, slugFromKv);
 
 	if (apiMeta) {
 		return {
