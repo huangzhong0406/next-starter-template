@@ -1,20 +1,22 @@
-export type TenantMeta = {
-	slug: string;
-	name: string;
-	tagline: string;
-	description: string;
-	accent: string;
-	secondary: string;
-	features: string[];
-	verified?: boolean;
-};
+/**
+ * @typedef {Object} TenantMeta
+ * @property {string} slug
+ * @property {string} name
+ * @property {string} tagline
+ * @property {string} description
+ * @property {string} accent
+ * @property {string} secondary
+ * @property {string[]} features
+ * @property {boolean} [verified]
+ */
 
-export type TenantResolution = {
-	slug: string;
-	meta: TenantMeta;
-	source: "api" | "fallback";
-	matchedByKv: boolean;
-};
+/**
+ * @typedef {Object} TenantResolution
+ * @property {string} slug
+ * @property {TenantMeta} meta
+ * @property {"api" | "fallback"} source
+ * @property {boolean} matchedByKv
+ */
 
 export const KV_HOST_KEY_PREFIX = "host:";
 
@@ -22,7 +24,8 @@ const CF_CONTEXT_SYMBOL = Symbol.for("__cloudflare-context__");
 const DEFAULT_API_BASE =
 	process.env.TENANT_API_BASE ?? "https://testapi.singoo.cc";
 
-const fallbackTenants: Record<string, TenantMeta> = {
+/** @type {Record<string, TenantMeta>} */
+const fallbackTenants = {
 	studio: {
 		slug: "studio",
 		name: "Singoo 控制中心",
@@ -43,17 +46,21 @@ const fallbackTenants: Record<string, TenantMeta> = {
 
 const defaultTenant = fallbackTenants.studio;
 
-type CloudflareContext = { env?: CloudflareEnv };
-
-const sanitizeHost = (host?: string | null): string | undefined => {
+/**
+ * @param {string | null | undefined} host
+ */
+const sanitizeHost = (host) => {
 	if (!host) {
 		return undefined;
-	}
+}
 	const trimmed = host.split(",")[0]?.trim();
 	return trimmed?.replace(/\/.*$/, "").toLowerCase();
 };
 
-const deriveSlugFromHost = (host?: string): string => {
+/**
+ * @param {string | undefined} host
+ */
+const deriveSlugFromHost = (host) => {
 	if (!host) {
 		return defaultTenant.slug;
 	}
@@ -62,21 +69,23 @@ const deriveSlugFromHost = (host?: string): string => {
 	return label || defaultTenant.slug;
 };
 
-const getCloudflareEnv = (): CloudflareEnv | undefined => {
+/**
+ * @returns {CloudflareEnv | undefined}
+ */
+const getCloudflareEnv = () => {
 	try {
-		const context = Reflect.get(globalThis, CF_CONTEXT_SYMBOL) as
-			| CloudflareContext
-			| undefined;
+		const context = Reflect.get(globalThis, CF_CONTEXT_SYMBOL);
 		return context?.env;
 	} catch {
 		return undefined;
 	}
 };
 
-const getTenantSlugFromKv = async (
-	env: CloudflareEnv | undefined,
-	host: string | undefined
-): Promise<string | undefined> => {
+/**
+ * @param {CloudflareEnv | undefined} env
+ * @param {string | undefined} host
+ */
+const getTenantSlugFromKv = async (env, host) => {
 	if (!env?.TENANTS || !host) {
 		return undefined;
 	}
@@ -90,33 +99,25 @@ const getTenantSlugFromKv = async (
 	}
 };
 
-type TenantApiResponse = {
-	slug?: string;
-	meta?: {
-		slug?: string;
-		name?: string;
-		tagline?: string;
-		description?: string;
-		accent?: string;
-		secondary?: string;
-		features?: unknown;
-		verified?: boolean;
-		[key: string]: unknown;
-	};
-	[key: string]: unknown;
-};
+/**
+ * @typedef {Object} TenantApiResponse
+ * @property {string} [slug]
+ * @property {Object} [meta]
+ */
 
-const mapApiResponseToMeta = (
-	response: TenantApiResponse,
-	slug: string
-): TenantMeta | undefined => {
+/**
+ * @param {TenantApiResponse} response
+ * @param {string} slug
+ * @returns {TenantMeta | undefined}
+ */
+const mapApiResponseToMeta = (response, slug) => {
 	const meta = response.meta;
 	if (!meta) {
 		return undefined;
 	}
 
 	const features = Array.isArray(meta.features)
-		? (meta.features.filter((item): item is string => typeof item === "string"))
+		? meta.features.filter((item) => typeof item === "string")
 		: undefined;
 
 	if (
@@ -142,10 +143,12 @@ const mapApiResponseToMeta = (
 	};
 };
 
-const fetchTenantMeta = async (
-	slug: string
-): Promise<TenantMeta | undefined> => {
-	const endpoint = `${DEFAULT_API_BASE.replace(/\/$/, "")}/v2/aisite/pages/${slug}`;
+/**
+ * @param {string} slug
+ * @returns {Promise<TenantMeta | undefined>}
+ */
+const fetchTenantMeta = async (slug) => {
+	const endpoint = `${DEFAULT_API_BASE.replace(/\/$/, "")}/tenants/${slug}`;
 
 	try {
 		const response = await fetch(endpoint, {
@@ -162,7 +165,7 @@ const fetchTenantMeta = async (
 			);
 		}
 
-		const data = (await response.json()) as TenantApiResponse;
+		const data = await response.json();
 		return mapApiResponseToMeta(data, slug);
 	} catch (error) {
 		console.warn("TENANT_API::fetch failed", { slug, error });
@@ -170,9 +173,11 @@ const fetchTenantMeta = async (
 	}
 };
 
-export const resolveTenantForHost = async (
-	host?: string | null
-): Promise<TenantResolution> => {
+/**
+ * @param {string | null | undefined} host
+ * @returns {Promise<TenantResolution>}
+ */
+export const resolveTenantForHost = async (host) => {
 	const cleanHost = sanitizeHost(host);
 	const env = getCloudflareEnv();
 

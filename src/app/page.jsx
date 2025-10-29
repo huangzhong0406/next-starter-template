@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { resolveTenantForHost } from "@/lib/tenants";
+import { resolveTenantForHost } from "@/lib/tenants.js";
 
 export default async function Home() {
 	const headerList = await headers();
