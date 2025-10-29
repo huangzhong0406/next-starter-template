@@ -4,7 +4,8 @@ import { resolveTenantForHost } from "@/lib/tenants.js";
 export default async function Home() {
 	const headerList = await headers();
 	const host = headerList.get("host");
-	const { meta, matchedByKv, source } = await resolveTenantForHost(host);
+	const { meta, matchedByKv, source, cacheStatus } =
+		await resolveTenantForHost(host);
 
 	if (!matchedByKv) {
 		return (
@@ -67,15 +68,17 @@ export default async function Home() {
 							<span className="rounded-full border border-white/20 bg-white/10 px-4 py-2">
 								Slug / {meta.slug}
 							</span>
-							<span
-								className={`rounded-full border px-4 py-2 ${
-									source === "api"
-										? "border-emerald-300/80 bg-emerald-400/10 text-emerald-200"
-										: "border-amber-300/80 bg-amber-400/10 text-amber-100"
-								}`}
-							>
-								{source === "api" ? "数据来源：API" : "数据来源：Fallback"}
-							</span>
+							{source !== "fallback" ? (
+								<span className="rounded-full border border-emerald-300/80 bg-emerald-400/10 px-4 py-2 text-emerald-200">
+									{source === "edge-cache"
+										? `数据来源：边缘缓存 (${cacheStatus ?? "HIT"})`
+										: "数据来源：API（源站）"}
+								</span>
+							) : (
+								<span className="rounded-full border border-amber-300/80 bg-amber-400/10 px-4 py-2 text-amber-100">
+									数据来源：Fallback
+								</span>
+							)}
 						</div>
 						<div className="mt-4 inline-flex flex-wrap gap-3 text-sm text-white/85">
 							{meta.features.map((feature) => (

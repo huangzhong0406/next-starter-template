@@ -146,7 +146,7 @@ const mapApiResponseToMeta = (response, slug) => {
 
 /**
  * @param {string} slug
- * @returns {Promise<TenantMeta | undefined>}
+ * @returns {Promise<{ meta?: TenantMeta; cacheStatus?: string }>}
  */
 const fetchTenantMeta = async (host, slug) => {
 	const endpoint = `${DEFAULT_API_BASE.replace(/\/$/, "")}/v2/aisite/pages/${slug}`;
@@ -172,10 +172,13 @@ const fetchTenantMeta = async (host, slug) => {
 		}
 
 		const data = await response.json();
-		return mapApiResponseToMeta(data, slug);
+		return {
+			meta: mapApiResponseToMeta(data, slug),
+			cacheStatus: response.headers.get("cf-cache-status") ?? undefined
+		};
 	} catch (error) {
 		console.warn("TENANT_API::fetch failed", { slug, error });
-		return undefined;
+		return {};
 	}
 };
 
@@ -201,18 +204,25 @@ export const resolveTenantForHost = async (host) => {
 			slug: derivedSlug,
 			meta: fallbackMeta,
 			source: "fallback",
-			matchedByKv: false
+			matchedByKv: false,
+			cacheStatus: undefined
 		};
 	}
 
-	const apiMeta = await fetchTenantMeta(cleanHost, slugFromKv);
+	const { meta: apiMeta, cacheStatus } =
+		(await fetchTenantMeta(cleanHost, slugFromKv)) ?? {};
 
 	if (apiMeta) {
+		const derivedSource =
+			cacheStatus && cacheStatus.toUpperCase() === "HIT"
+				? "edge-cache"
+				: "api";
 		return {
 			slug: slugFromKv,
 			meta: apiMeta,
-			source: "api",
-			matchedByKv: true
+			source: derivedSource,
+			matchedByKv: true,
+			cacheStatus
 		};
 	}
 
@@ -226,7 +236,8 @@ export const resolveTenantForHost = async (host) => {
 		slug: slugFromKv,
 		meta: fallbackMeta,
 		source: "fallback",
-		matchedByKv: true
+		matchedByKv: true,
+		cacheStatus: undefined
 	};
 };
 
