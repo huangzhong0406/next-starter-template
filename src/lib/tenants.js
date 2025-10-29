@@ -148,7 +148,7 @@ const mapApiResponseToMeta = (response, slug) => {
  * @returns {Promise<TenantMeta | undefined>}
  */
 const fetchTenantMeta = async (slug) => {
-	const endpoint = `${DEFAULT_API_BASE.replace(/\/$/, "")}/tenants/${slug}`;
+	const endpoint = `${DEFAULT_API_BASE.replace(/\/$/, "")}/v2/aisite/pages/${slug}`;
 
 	try {
 		const response = await fetch(endpoint, {
