@@ -153,6 +153,11 @@ const fetchTenantMeta = async (slug) => {
 	try {
 		const response = await fetch(endpoint, {
 			cache: "no-store",
+			cf: {
+				cacheEverything: true,
+				cacheTtl: 3600,
+				cacheKey: `tenant-meta:${slug}`
+			},
 			headers: {
 				accept: "application/json",
 				"x-tenant-slug": slug
