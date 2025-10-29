@@ -4,7 +4,7 @@ import { resolveTenantForHost } from "@/lib/tenants.js";
 export default async function Home() {
 	const headerList = await headers();
 	const host = headerList.get("host");
-	const { meta, matchedByKv } = await resolveTenantForHost(host);
+	const { meta, matchedByKv, source } = await resolveTenantForHost(host);
 
 	if (!matchedByKv) {
 		return (
